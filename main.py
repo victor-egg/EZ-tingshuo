@@ -44,7 +44,7 @@ def check_program_status(program_name):
 def log_watcher():
     global examination_status
     global m_quit_examination
-    today_date = datetime.datetime.now().strftime('%Y-%m-%d')
+    today_date = datetime.datetime.now().strftime('%Y-%#m-%#d')
     log_file = os.path.join(program_directory, 'logs', f'shell_{today_date}.log')
     while True:
         try:
