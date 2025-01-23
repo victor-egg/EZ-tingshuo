@@ -1,0 +1,16 @@
+{
+    "allow_run": true,
+    "must_update": true,
+    "enforcing": true,
+    "white_version_list": [
+        "5072"
+    ],
+    "black_version_list": [
+        "0",
+        ""
+    ],
+    "latest_program_CVersion": "1.1.0",
+    "latest_program_version": 20250124,
+    "latest_program_download_url": "https://github.com/victor-egg/EZ-tingshuo/releases/tag/1.1.0",
+    "latest_program_update_info": "1. 支持联网更新\n2. 修复已知问题"
+}

@@ -1,5 +1,9 @@
 import os
 import re
+import sqlite3
+import webbrowser
+import requests
+import json
 import psutil
 import json
 import tkinter as tk
@@ -8,10 +12,50 @@ import threading
 import datetime
 import time
 
+program_name = 'ETSShell.exe'
+program_version = 20250124
+online_data_url = "https://cdn.jsdelivr.net/gh/victor-egg/EZ-tingshuo/online.json"
+white_version_list = []
+black_version_list = []
 open_papers = []
 open_child_windows = []
 examination_status = False
 m_quit_examination = 0
+
+
+def exit_program():
+    close_all_child_windows()
+    root.destroy()
+
+def online_data_update():
+    global white_version_list
+    global black_version_list
+    try:
+        response = requests.get(online_data_url)
+        response.raise_for_status()  # 检测响应状态码
+        json_data = response.json()
+        if json_data["allow_run"] == False:
+            exit_program()
+        if json_data["enforcing"] == True:
+            white_version_list = json_data["white_version_list"]
+        black_version_list = json_data["black_version_list"]
+        latest_program_version = json_data["latest_program_version"]
+        if latest_program_version > program_version:
+            new_CVersion = json_data["latest_program_CVersion"]
+            new_download_url = json_data["latest_program_download_url"]
+            update_info = json_data["latest_program_update_info"]
+            if messagebox.askyesno("发现新版本", f"最新版本: {new_CVersion}\n更新说明:\n{update_info}\n\n点击确定下载新版本"):
+                webbrowser.open(new_download_url)
+            if json_data["must_update"] == True:
+                messagebox.showerror("", "当前版本已经不支持使用, 请下载新版本")
+                exit_program()
+    except Exception as e:
+        if response.status_code == 404:
+            messagebox.showerror("无法连接到服务器", f"请检查网络连接或者稍后再试...\n{e}")
+            exit_program()
+        else:
+            update_log(f"[EZ听说] - 无法获取数据更新: {e}")
+            online_data_update()
 
 def toggle_topmost():
     global open_child_windows
@@ -28,15 +72,43 @@ def find_program_directory(program_name):
             pass
     return None
 
+def cheak_program_version(program_path):
+    db_path = os.path.abspath(program_path + '\\localdata\\ETS.db')
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT Config.Value FROM Config WHERE Config.Entry='Update_Version'")
+        data = cursor.fetchall()
+        version = data[0][0]
+        if white_version_list == []:
+            white_version_list.append(version)
+        if version in white_version_list and version not in black_version_list:
+            cursor.close()
+            conn.close()
+            return True
+        else:
+            cursor.close()
+            conn.close()
+            return False
+    except sqlite3.Error as e:
+        update_log(f"无法连接数据库: {e}\n")
+        cursor.close()
+        conn.close()
+        return False
+
 def check_program_status(program_name):
     global open_child_windows
     global program_directory
     while True:
         program_directory = find_program_directory(program_name)
         if program_directory:
-            update_status("E听说中学 - 运行中")
-            start_log_watcher()
-            break
+            if cheak_program_version(program_directory) == True:
+                update_status("E听说中学 - 运行中")
+                start_log_watcher()
+                break
+            else:
+                update_status("E听说中学 - 当前版本不支持")
+                update_log(f"[EZ听说] - ETS 版本不支持\n[EZ听说] - 当前支持的版本号: {white_version_list}\n")
         else:
             update_status("E听说中学 - 未启动")
         time.sleep(1)
@@ -55,9 +127,10 @@ def log_watcher():
                     if not line:
                         time.sleep(0.1)
                         continue
-                    update_log(line)
+                    # update_log(line)
 
                     if 'filehelper::OnGetBase64' in line:
+                        update_log(f"[EZ听说] - 捕获[文件操作]: \n{line}")
                         match = re.search(r'filepath:\s*(.+?)(\s*$)', line)
                         if match:
                             file_path = match.group(1).strip()
@@ -71,14 +144,13 @@ def log_watcher():
                                     m_quit_examination = 0
 
                     if "destroy 结束" in line:
+                        update_log(f"[EZ听说] - 捕获[窗口操作]: \n{line}")
                         update_status("考试 - 结束")
                         close_all_child_windows()
                         m_quit_examination = 1
                         examination_status = False
-        except UnicodeDecodeError as e:
-            update_log("[EZ听说] 程序运行错误: {e}")
         except Exception as e:
-            messagebox.showerror("遇到了意料之外的情况~", f"解析日志遇到问题: {e}")
+            update_log("[EZ听说] - 程序运行错误: {e}")
 
 def close_all_child_windows():
     global open_papers
@@ -258,7 +330,7 @@ if __name__ == '__main__':
     text_box_log.config(yscrollcommand=scroll_bar.set)
 
     # 启动程序状态检查线程
-    program_name = 'ETSShell.exe'
+    threading.Thread(target=online_data_update, daemon=True).start()
     threading.Thread(target=check_program_status, args=(program_name,), daemon=True).start()
 
     # 运行主事件循环
