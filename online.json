@@ -1,6 +1,6 @@
 {
     "allow_run": true,
-    "must_update": true,
+    "must_update": false,
     "enforcing": true,
     "white_version_list": [
         "5072"
@@ -9,8 +9,8 @@
         "0",
         ""
     ],
-    "latest_program_CVersion": "1.1.0",
-    "latest_program_version": 20250124,
-    "latest_program_download_url": "https://github.com/victor-egg/EZ-tingshuo/releases/tag/1.1.0",
-    "latest_program_update_info": "1. 支持联网更新\n2. 修复已知问题"
+    "latest_program_CVersion": "1.2.0",
+    "latest_program_version": 20250127,
+    "latest_program_download_url": "https://github.com/victor-egg/EZ-tingshuo/releases/tag/1.2.0",
+    "latest_program_update_info": "1. 优化性能\n2. 适配系统DPI,优化显示\n3. 新增HarmonyOS Sans字体"
 }
