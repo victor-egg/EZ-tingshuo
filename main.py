@@ -23,8 +23,8 @@ def get_font_path(font_name):
     return os.path.join(base_dir, 'fonts', f'{font_name}.ttf')
 
 PROGRAM_NAME = 'ETSShell.exe'
-ONLINE_DATA_URL = "https://cdn.jsdelivr.net/gh/victor-egg/EZ-tingshuo/online.json"
-# ONLINE_DATA_URL = "http://127.0.0.1:8000/online.json"
+ONLINE_DATA_URL = "https://cdn.jsdelivr.net/gh/victor-egg/EZ-tingshuo@latest/online.json"
+# ONLINE_DATA_URL = "http://127.0.0.1:8000/online.json"        # DEBUG
 LOG_ENCODING = 'GB18030'
 DB_NAME = 'localdata/ETS.db'
 MAX_RETRIES = 5
@@ -34,7 +34,7 @@ FONT_PATH = get_font_path(f"HarmonyOS_Sans_SC_Medium")
 class AppState:
     """封装应用程序运行状态"""
     def __init__(self):
-        self.program_version = 20250127
+        self.program_version = 20250128
         self.white_versions: List[str] = []
         self.black_versions: List[str] = []
         self.open_papers: Set[str] = set()
@@ -109,49 +109,44 @@ class Application(tk.Tk):
     def _start_background_tasks(self):
         """启动后台监控线程"""
         threading.Thread(target=self._check_online_updates, daemon=True).start()
-        threading.Thread(target=self._monitor_program_status, daemon=True).start()
 
     def _check_online_updates(self):
         """检查在线更新"""
         for _ in range(MAX_RETRIES):
             try:
+                self._update_status(f"更新配置文件中...(由网络决定,这可能需要一点时间)")
                 response = requests.get(ONLINE_DATA_URL, timeout=10)
                 response.raise_for_status()
                 data = response.json()
-                
                 if not data.get("allow_run", True):
-                    self._safe_exit()
-                
+                    self._safe_exit(-1)
                 app_state.white_versions = data.get("white_version_list", [])
                 app_state.black_versions = data.get("black_version_list", [])
-                
                 latest_version = data.get("latest_program_version", 0)
                 if latest_version > app_state.program_version:
                     self._handle_update_notification(data)
-                
                 if data.get("enforcing", False):
                     self._validate_program_version()
-                
+                self._append_log(f"已更新配置文件")
+                threading.Thread(target=self._monitor_program_status, daemon=True).start()
                 return
             except requests.RequestException as e:
                 self._append_log(f"网络请求失败: {str(e)}")
                 time.sleep(2)
-        messagebox.showerror("连接失败", "无法获取更新信息，请检查网络连接")
-        self._safe_exit()
+        messagebox.showerror("", "无法连接到服务器")
+        self._safe_exit(-1)
 
     def _handle_update_notification(self, data: Dict[str, Any]):
         """处理更新通知"""
         update_info = (
             f"最新版本: {data['latest_program_CVersion']}\n"
             f"更新说明:\n{data['latest_program_update_info']}\n\n"
-        )
-        
-        if messagebox.askyesno("发现新版本", update_info + "点击确定下载新版本"):
+        )  
+        if messagebox.askyesno("软件更新", update_info + "点击确定下载新版本"):
             webbrowser.open(data["latest_program_download_url"])
-        
         if data.get("must_update", False):
-            messagebox.showerror("版本过期", "当前版本已不支持使用，请下载新版本")
-            self._safe_exit()
+            messagebox.showerror("", "当前版本生命周期已结束，请下载新版本")
+            self._safe_exit(0)
 
     def _validate_program_version(self):
         """验证程序版本有效性"""
@@ -180,7 +175,6 @@ class Application(tk.Tk):
         """监控目标程序状态"""
         while True:
             app_state.program_path = self._find_program_path()
-            
             if app_state.program_path:
                 if self._validate_program_version():
                     threading.Thread(target=self._log_monitor, daemon=True).start()
@@ -189,7 +183,6 @@ class Application(tk.Tk):
                     self._update_status("E听说中学 - 版本不支持")
             else:
                 self._update_status("E听说中学 - 未启动")
-            
             time.sleep(1)
 
     def _find_program_path(self) -> Optional[str]:
@@ -209,10 +202,8 @@ class Application(tk.Tk):
         while True:
             try:
                 if not os.path.exists(log_path):
-                    time.sleep(1)
-                    continue
-                
-                with open(log_path, 'r', encoding=LOG_ENCODING) as f:
+                    raise FileNotFoundError(f"无法读取文件: {log_path}")
+                with open(log_path, 'r', encoding=LOG_ENCODING, errors='ignore') as f:
                     f.seek(0, os.SEEK_END)
                     while True:
                         line = f.readline()
@@ -397,12 +388,12 @@ class Application(tk.Tk):
         self.log_display.see(tk.END)
         self.log_display.config(state=tk.DISABLED)
 
-    def _safe_exit(self):
+    def _safe_exit(self, status: int = 0):
         """安全退出程序"""
         self._close_all_child_windows()
         self.destroy()
         ctypes.windll.gdi32.RemoveFontResourceExW(FONT_PATH, 0x10, 0)
-        sys.exit(0)
+        sys.exit(status)
 
 def main():
     """程序入口"""
@@ -417,7 +408,7 @@ def main():
         app.mainloop()
     else:
         messagebox.showerror("", "不受支持的系统")
-        sys.exit(0)
+        sys.exit(-1)
 
 if __name__ == '__main__':
     main()
