@@ -27,7 +27,13 @@ ONLINE_DATA_URL = "https://cdn.jsdelivr.net/gh/victor-egg/EZ-tingshuo@latest/onl
 # ONLINE_DATA_URL = "http://127.0.0.1:8000/online.json"        # DEBUG
 LOG_ENCODING = 'GB18030'
 DB_NAME = 'localdata/ETS.db'
-MAX_RETRIES = 5
+MAX_RETRIES = 6
+HEADERS = {
+    "Accept": "*/*",
+    "Accept-Encoding": "gzip",
+    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36'
+}
 FONT_FAMILY = 'HarmonyOS Sans SC Medium'
 FONT_PATH = get_font_path(f"HarmonyOS_Sans_SC_Medium")
 
@@ -114,8 +120,8 @@ class Application(tk.Tk):
         """检查在线更新"""
         for _ in range(MAX_RETRIES):
             try:
-                self._update_status(f"更新配置文件中...(由网络决定,这可能需要一点时间)")
-                response = requests.get(ONLINE_DATA_URL, timeout=10)
+                self._update_status(f"更新配置文件中(速度由网络决定)...")
+                response = requests.get(ONLINE_DATA_URL, timeout=12, headers=HEADERS, verify=True)
                 response.raise_for_status()
                 data = response.json()
                 if not data.get("allow_run", True):
@@ -131,7 +137,7 @@ class Application(tk.Tk):
                 threading.Thread(target=self._monitor_program_status, daemon=True).start()
                 return
             except requests.RequestException as e:
-                self._append_log(f"网络请求失败: {str(e)}")
+                self._append_log(f"连接服务器失败: {str(e)}")
                 time.sleep(2)
         messagebox.showerror("", "无法连接到服务器")
         self._safe_exit(-1)
